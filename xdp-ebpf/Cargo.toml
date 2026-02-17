@@ -1,0 +1,19 @@
+[package]
+name = "xdp-ebpf"
+version = "0.1.0"
+edition = "2026"
+
+[lib]
+path = "src/main.rs"
+crate-type = ["cdylib"]
+
+[dependencies]
+aya-ebpf = { version = "0.3", default-features = false, features = ["maps", "xdp"]}
+aya-log-ebpf = "0.1"
+network-types = "0.4"
+dns-xdp-data-structures = { path = "../xdp-user-space" }
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"

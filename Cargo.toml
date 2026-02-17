@@ -1,0 +1,3 @@
+[workspace]
+members = ["xdp-ebpf", "xdp-data-structures", "xdp-user-space"]
+resolver = "2" 
