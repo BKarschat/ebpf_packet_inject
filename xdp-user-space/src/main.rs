@@ -15,18 +15,40 @@ use tokio::signal;
 #[derive(Debug, Parser)]
 #[command(name = "xdp-user")]
 #[command(about = "DNS XDP filter with config", long_about = None)]
-struct Opt {
-    #[arg(short, long, default_value = "enp0s3")]
+
+#[derive(Debug, clap::Subcommand)]
+enum Command {
+    Run {
+        #[arg(short, long, default_value = "enp0s3")]
         iface: String,
+    },
+    //
+    //hot reload of pattern
+
+    SetPattern {
+        #[arg(short, long)]
+        pattern: String,
+        #[arg(short, long)]
+        pattern_len: Option<usize>,
+    },
+}
+
+#[derive(Debug, Parser)]
+struct Opt {
+    #[command(subcommand)]
+    cmd: Command,
+    //#[arg(short, long, default_value = "enp0s3")]
+    //    iface: String,
 
         //pattern as hex
-    #[arg(short, long)]
-        pattern: String,
+    //#[arg(short, long)]
+    //    pattern: String,
 
         //pattern length
-    #[arg(short, long)]
-        pattern_len: Option<usize>,
+    //#[arg(short, long)]
+    //    pattern_len: Option<usize>,
 }
+
 
 fn parse_pattern (pattern_str: &str, len: Option<usize>) -> Result<DnsConfig> {
     let clean = pattern_str.replace(":", "").replace("-", "").replace(" ", "");
