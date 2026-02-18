@@ -72,11 +72,30 @@ fn parse_pattern (pattern_str: &str, len: Option<usize>) -> Result<DnsConfig> {
     })
 }
 
+fn set_pattern(pattern_str: &str, len: Option<usize>) -> Result <()> {
+    let cfg = parse_pattern(pattern_str, len)?;
+    let mut bpf = Ebpf::load{include_bytes_aligned! (
+    "../../target/bpfel-unknown-none/release/dns-xdp-ebpf" ) };
+    
+    // do not attach, just get the map
+    let mut config_map: HashMap<_, u32, DnsConfig> = HashMap::try_from(bpf.map_mut("CONFIG")?)?;
+    let key: u32 = 0;
+    config_map.insert(key, cfg, 0)?;
+    info!("init pattern");
+
+}
+
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
     
     let opt = Opt::parse();
+    match opt.cmd {
+        Command::Run {iface} => run_deamon(&iface).await?,
+        Command::SetPattern {pattern, pattern_len } =>  { set_pattern(&pattern, pattern_len)},
+    }
+
     {
         let mut config_map: HashMap<_, u32, DnsConfig> =
             HashMap::try_from(bpf.map_mut("CONFIG")?)?;
