@@ -7,7 +7,7 @@ edition = "2024"
 aya = { version = "0.3", features = ["async_tokio"] }
 anyhow = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
-xdp-data-structure = { path = "../xdp-data-structures" }
+xdp-data-structures = { path = "../xdp-data-structures" }
 clap = { version = "4", features = ["derive"] }
 env_logger = "0.11"
 log = "0.4"

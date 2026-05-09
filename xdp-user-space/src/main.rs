@@ -76,7 +76,7 @@ fn parse_pattern (pattern_str: &str, len: Option<usize>) -> Result<DnsConfig> {
 fn set_pattern(pattern_str: &str, len: Option<usize>) -> Result <()> {
     let cfg = parse_pattern(pattern_str, len)?;
     let mut bpf = Ebpf::load(include_bytes_aligned! (
-    "../../target/bpfel-unknown-none/release/dns-xdp-ebpf" ));
+    "../../target/bpfel-unknown-none/release/dns-xdp-ebpf" ))?;
     
     // do not attach, just get the map
     let mut config_map: HashMap<_, u32, DnsConfig> = HashMap::try_from(bpf.map_mut("CONFIG")?)?;
