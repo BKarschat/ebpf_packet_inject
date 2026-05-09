@@ -3,12 +3,12 @@ use std::{net::Ipv4Addr, time::Duration};
 use anyhow::Result;
 use aya::{
     include_bytes_aligned,
-    maps::ring_buf::RingBuf,
+    maps::{ring_buf::RingBuf,HashMap},
     programs::{Xdp, XdpFlags},
     Ebpf,
 };
 use clap::Parser;
-use xdp-data-structures::{DnsEvent, DnsConfig};
+use xdp_data_structures::{DnsEvent, DnsConfig};
 use log::info;
 use tokio::signal;
 
@@ -61,6 +61,7 @@ fn parse_pattern (pattern_str: &str, len: Option<usize>) -> Result<DnsConfig> {
     }
 
     let mut pattern = [0u8; 32];
+    // daily clean.as_bytes().chunks(2).take(32).enumerate()
     for (i, chunk) in clean.as_bytes().array_chunks().take(32).enumerate() {
         pattern[i] = u8::from_str_radix(
             core::str::from_utf8(chunk).unwrap(), 16)?;
@@ -74,14 +75,15 @@ fn parse_pattern (pattern_str: &str, len: Option<usize>) -> Result<DnsConfig> {
 
 fn set_pattern(pattern_str: &str, len: Option<usize>) -> Result <()> {
     let cfg = parse_pattern(pattern_str, len)?;
-    let mut bpf = Ebpf::load{include_bytes_aligned! (
-    "../../target/bpfel-unknown-none/release/dns-xdp-ebpf" ) };
+    let mut bpf = Ebpf::load(include_bytes_aligned! (
+    "../../target/bpfel-unknown-none/release/dns-xdp-ebpf" ));
     
     // do not attach, just get the map
     let mut config_map: HashMap<_, u32, DnsConfig> = HashMap::try_from(bpf.map_mut("CONFIG")?)?;
     let key: u32 = 0;
     config_map.insert(key, cfg, 0)?;
     info!("init pattern");
+    Ok(())
 
 }
 
@@ -92,28 +94,37 @@ async fn main() -> Result<()> {
     
     let opt = Opt::parse();
     match opt.cmd {
-        Command::Run {iface} => run_deamon(&iface).await?,
+        Command::Run {iface} => run_daemon(&iface).await?,
         Command::SetPattern {pattern, pattern_len } =>  { set_pattern(&pattern, pattern_len)},
     }
+    Ok(())
+}
 
-    {
-        let mut config_map: HashMap<_, u32, DnsConfig> =
-            HashMap::try_from(bpf.map_mut("CONFIG")?)?;
-        let key: u32 = 0;
-        let cfg = DnsConfig { pattern };
-        config_map.insert(key, cfg, 0)?;
-        info!("Config map initialisiert");
-    }
-    let pattern_config = parse_pattern(&opt.pattern, opt.pattern_len)?;
-    config_map.insert(key, pattern_config, 0)?;
-
+async fn run_daemon(iface: &str) -> Result<()> {
 
     let mut bpf = Ebpf::load(include_bytes_aligned!("../../target/bpfel-unknown-none/release/xdp-ebpf"))?;
+    // init config map    
+    let mut config_map: HashMap<_, u32, DnsConfig> =
+            HashMap::try_from(bpf.map_mut("CONFIG")?)?;
+        let key: u32 = 0;
+        let default_cfg = DnsConfig { 
+            pattern_len: 4, 
+            pattern: {let mut p = [0u8;32];
+            p[..4].copy_from_slice(&[0xde, 0xad, 0xbe, 0xef]); p}
+            };
+
+        config_map.insert(key, default_cfg, 0)?;
+        info!("Config map initialisiert");
+    
+    //let pattern_config = parse_pattern(&opt.pattern, opt.pattern_len)?;
+    //config_map.insert(key, pattern_config, 0)?;
+
+
 
     let program: &mut Xdp = bpf.program_mut("dns_xdp").unwrap().try_into()?;
     program.load()?;
-    program.attach(&opt.iface, XdpFlags::default())?;
-    info!("XDP program attached on {}", opt.iface);
+    program.attach(iface, XdpFlags::default())?;
+    info!("XDP program attached on {}", iface);
 
     let mut ring_buf = RingBuf::try_from(bpf.map_mut("EVENTS")?)?;
     let mut async_rb = aya::maps::ring_buf::RingBufAsync::new(ring_buf)?;
@@ -129,7 +140,7 @@ async fn main() -> Result<()> {
             res = async_rb.next() => {
                 match res {
                     Ok (data) => {
-                        if data.len() != core::mem::size_of<DnsEvent>() {
+                        if data.len() != core::mem::size_of::<DnsEvent>() {
                             continue;
                         }
                         let event: &DnsEvent = unsafe {
@@ -139,8 +150,6 @@ async fn main() -> Result<()> {
                         let src = Ipv4Addr::from(event.src_ip);
                         let dst = Ipv4Addr::from(event.dst_ip);
 
-                        info!( "Match from {}:{}, bytes={:02x?}",
-                            src, event.src_port, dst, event.dst_port, event.match_bytes, );
                         info!(
                             "Match (len={}): {}:{} -> {}:{}, bytes={:02x?}",
                             event.match_len,

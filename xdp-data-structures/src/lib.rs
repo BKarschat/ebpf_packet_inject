@@ -10,8 +10,8 @@ pub struct DnsEvent {
     pub dst_ip: u32,
     pub src_port: u16,
     pub dst_port: u16,
-    pub match_bytes: [u8; 4],
-    pub match_len: [u8; 4],
+    pub match_bytes: [u8; 32],
+    pub match_len: u8,
 }
 
 #[repr(C)]
