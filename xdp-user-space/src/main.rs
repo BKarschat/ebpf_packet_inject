@@ -15,18 +15,40 @@ use tokio::signal;
 #[derive(Debug, Parser)]
 #[command(name = "xdp-user")]
 #[command(about = "DNS XDP filter with config", long_about = None)]
-struct Opt {
-    #[arg(short, long, default_value = "enp0s3")]
+
+#[derive(Debug, clap::Subcommand)]
+enum Command {
+    Run {
+        #[arg(short, long, default_value = "enp0s3")]
         iface: String,
+    },
+    //
+    //hot reload of pattern
+
+    SetPattern {
+        #[arg(short, long)]
+        pattern: String,
+        #[arg(short, long)]
+        pattern_len: Option<usize>,
+    },
+}
+
+#[derive(Debug, Parser)]
+struct Opt {
+    #[command(subcommand)]
+    cmd: Command,
+    //#[arg(short, long, default_value = "enp0s3")]
+    //    iface: String,
 
         //pattern as hex
-    #[arg(short, long)]
-        pattern: String,
+    //#[arg(short, long)]
+    //    pattern: String,
 
         //pattern length
-    #[arg(short, long)]
-        pattern_len: Option<usize>,
+    //#[arg(short, long)]
+    //    pattern_len: Option<usize>,
 }
+
 
 fn parse_pattern (pattern_str: &str, len: Option<usize>) -> Result<DnsConfig> {
     let clean = pattern_str.replace(":", "").replace("-", "").replace(" ", "");
@@ -50,11 +72,30 @@ fn parse_pattern (pattern_str: &str, len: Option<usize>) -> Result<DnsConfig> {
     })
 }
 
+fn set_pattern(pattern_str: &str, len: Option<usize>) -> Result <()> {
+    let cfg = parse_pattern(pattern_str, len)?;
+    let mut bpf = Ebpf::load{include_bytes_aligned! (
+    "../../target/bpfel-unknown-none/release/dns-xdp-ebpf" ) };
+    
+    // do not attach, just get the map
+    let mut config_map: HashMap<_, u32, DnsConfig> = HashMap::try_from(bpf.map_mut("CONFIG")?)?;
+    let key: u32 = 0;
+    config_map.insert(key, cfg, 0)?;
+    info!("init pattern");
+
+}
+
+
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
     
     let opt = Opt::parse();
+    match opt.cmd {
+        Command::Run {iface} => run_deamon(&iface).await?,
+        Command::SetPattern {pattern, pattern_len } =>  { set_pattern(&pattern, pattern_len)},
+    }
+
     {
         let mut config_map: HashMap<_, u32, DnsConfig> =
             HashMap::try_from(bpf.map_mut("CONFIG")?)?;
