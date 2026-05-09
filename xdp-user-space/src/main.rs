@@ -1,8 +1,8 @@
-use std::(net::Ipv4Addr, time::Duration);
+use std::{net::Ipv4Addr, time::Duration};
 
 use anyhow::Result;
 use aya::{
-    include_bytes_aligened,
+    include_bytes_aligned,
     maps::ring_buf::RingBuf,
     programs::{Xdp, XdpFlags},
     Ebpf,
@@ -32,14 +32,14 @@ fn parse_pattern (pattern_str: &str, len: Option<usize>) -> Result<DnsConfig> {
     let clean = pattern_str.replace(":", "").replace("-", "").replace(" ", "");
 
     let byte_len = clean.len() / 2;
-    let effective_len = len.unwrap_op(byte_len);
+    let effective_len = len.unwrap_or(byte_len);
 
     if effective_len == 0 || effective_len > 32 {
         anyhow::bail!(" Pattern length has to be 1 - 32 byte!");
     }
 
     let mut pattern = [0u8; 32];
-    for (i, chunk) in clean.as_byte().array_chunks().take(32).enumerate() {
+    for (i, chunk) in clean.as_bytes().array_chunks().take(32).enumerate() {
         pattern[i] = u8::from_str_radix(
             core::str::from_utf8(chunk).unwrap(), 16)?;
     }
@@ -67,12 +67,12 @@ async fn main() -> Result<()> {
     config_map.insert(key, pattern_config, 0)?;
 
 
-    let mut bpf = Ebpf::load(include_bytes_aligned!("../../target/bpfel-unkown-none/release/xdp-ebpf"))?;
+    let mut bpf = Ebpf::load(include_bytes_aligned!("../../target/bpfel-unknown-none/release/xdp-ebpf"))?;
 
     let program: &mut Xdp = bpf.program_mut("dns_xdp").unwrap().try_into()?;
     program.load()?;
     program.attach(&opt.iface, XdpFlags::default())?;
-    info!("XDP program attached on {]", opt.iface);
+    info!("XDP program attached on {}", opt.iface);
 
     let mut ring_buf = RingBuf::try_from(bpf.map_mut("EVENTS")?)?;
     let mut async_rb = aya::maps::ring_buf::RingBufAsync::new(ring_buf)?;
@@ -82,7 +82,7 @@ async fn main() -> Result<()> {
     loop {
         tokio::select! {
             _ = signal::ctrl_c() => {
-                info(" Ctrl-C recieved, abort");
+                info!(" Ctrl-C recieved, abort");
                 break;
             }
             res = async_rb.next() => {
@@ -100,12 +100,12 @@ async fn main() -> Result<()> {
 
                         info!( "Match from {}:{}, bytes={:02x?}",
                             src, event.src_port, dst, event.dst_port, event.match_bytes, );
-info!(
-    "Match (len={}): {}:{} -> {}:{}, bytes={:02x?}",
-    event.match_len,
-    src, event.src_port, dst, event.dst_port,
-    &event.match_bytes[0..event.match_len as usize]
-);
+                        info!(
+                            "Match (len={}): {}:{} -> {}:{}, bytes={:02x?}",
+                            event.match_len,
+                            src, event.src_port, dst, event.dst_port,
+                            &event.match_bytes[0..event.match_len as usize]
+                        );
                         //TODO do more!
 
                     }

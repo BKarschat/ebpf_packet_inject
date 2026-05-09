@@ -14,9 +14,12 @@ use aya_ebpf::{
 };
 
 use aya_log_ebpf::info;
-use xdp-data-structures::{DnsEvent, DnsConfig};
-use network_types::{ eth::{EthHdr, EtherType},
-                    ip::Ipv4Hdr, udp::UdpHdr, };
+use network_types::{
+    eth::{EthHdr, EtherType},
+    ip::Ipv4Hdr,
+    udp::UdpHdr,
+};
+use xdp_data_structures::{DnsConfig, DnsEvent};
 
 #[map]
 static EVENTS: RingBuf = RingBuf::with_byte_size(256 * 1024, 0);
@@ -42,7 +45,7 @@ fn ptr_At<'a, T>(ctx: &XdpContext, offset: usize) -> Result<&'a T, ()> {
     }
     let ptr = (start + offset) as *const T;
     // BPF Verifier for no OUT OF BOUNDS errors
-    OK(unsafe {&*ptr})
+    Ok(unsafe { &*ptr })
 }
 
 #[xdp]
@@ -56,7 +59,7 @@ pub fn dns_xdp(ctx: XdpContext) -> u32 {
 fn try_dns_xdp(ctx: XdpContext) -> Result<u32, ()> {
     let eth = ptr_at::<EthHdr>(&ctx, 0)?;
     match eth.ether_type() {
-        Ok(EtherType::Ipv4) => {}, // TODO
+        Ok(EtherType::Ipv4) => {} // TODO
         _ => return Ok(xdp_action::XDP_PASS),
     }
 
@@ -65,16 +68,16 @@ fn try_dns_xdp(ctx: XdpContext) -> Result<u32, ()> {
     if ip.proto != 17 {
         return Ok(xdp_action::XDP_PASS);
     }
-    
+
     let ip_hdr_len = (ip.ihl() * 4) as usize;
     let udp_offset = EthHdr::LEN + ip_hdr_len; // dynamic offset
     let udp = ptr_at::<UdpHdr>(&ctx, udp_offset)?;
 
     let src_port = u16::from_be(udp.source);
-    let dst_port = u16::from_be(udp.dst);
+    let dst_port = u16::from_be(udp.dest);
 
     if src_port != 53 && dst_port != 53 {
-        return Ok(xdp_action:: XDP_PASS);
+        return Ok(xdp_action::XDP_PASS);
     }
 
     let udp_hdr_len = mem::size_of::<UdpHdr>();
@@ -95,9 +98,14 @@ fn try_dns_xdp(ctx: XdpContext) -> Result<u32, ()> {
     if max_len < pattern_len as usize {
         return Ok(xdp_action::XDP_PASS);
     }
-    
+
     //let p = (data_start + dns_offset + 12) as *const u8;
-    let payload = unsafe { core::slice::from_raw_parts((ctx.data() as usize + payload_offset) as *const u8, pattern_len as usize) };
+    let payload = unsafe {
+        core::slice::from_raw_parts(
+            (ctx.data() as usize + payload_offset) as *const u8,
+            pattern_len as usize,
+        )
+    };
 
     // byte for byte
     let mut match_ok = true;
@@ -107,7 +115,7 @@ fn try_dns_xdp(ctx: XdpContext) -> Result<u32, ()> {
             break;
         }
     }
-    
+
     if !match_ok {
         return Ok(xdp_action::XDP_PASS);
     }
@@ -128,7 +136,7 @@ fn try_dns_xdp(ctx: XdpContext) -> Result<u32, ()> {
 
         unsafe {
             entry.write(&event);
-    }
+        }
         entry.submit();
         info!(&ctx, "DNS match, event sent!");
     }

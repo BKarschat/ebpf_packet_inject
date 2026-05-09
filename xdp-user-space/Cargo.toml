@@ -1,7 +1,6 @@
 [package]
 name = "xdp-user-space"
 version = "0.1.0"
-edition = "2026"
 
 [dependencies]
 aya = { version = "0.3", features = ["async_tokio"] }
