@@ -1,10 +1,9 @@
 [package]
 name = "xdp-ebpf"
 version = "0.1.0"
-
+edition = "2024"
 
 [lib]
-path = "src/main.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
@@ -13,7 +12,3 @@ aya-log-ebpf = "0.1"
 network-types = "0.4"
 xdp-data-structures = { path = "../xdp-data-structures" }
 
-[profile.release]
-lto = true
-codegen-units = 1
-panic = "abort"

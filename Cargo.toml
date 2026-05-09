@@ -1,3 +1,8 @@
 [workspace]
 members = ["xdp-ebpf", "xdp-data-structures", "xdp-user-space"]
 resolver = "2" 
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+edition= "2024"
