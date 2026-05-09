@@ -1,0 +1,11 @@
+/home/ann0s/Dokumente/ebpf_packet_inject/target/release/deps/cargo_metadata-bdda94f0ea31ea3b.d: /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/lib.rs /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/dependency.rs /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/diagnostic.rs /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/errors.rs /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/messages.rs
+
+/home/ann0s/Dokumente/ebpf_packet_inject/target/release/deps/libcargo_metadata-bdda94f0ea31ea3b.rlib: /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/lib.rs /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/dependency.rs /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/diagnostic.rs /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/errors.rs /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/messages.rs
+
+/home/ann0s/Dokumente/ebpf_packet_inject/target/release/deps/libcargo_metadata-bdda94f0ea31ea3b.rmeta: /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/lib.rs /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/dependency.rs /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/diagnostic.rs /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/errors.rs /home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/messages.rs
+
+/home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/lib.rs:
+/home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/dependency.rs:
+/home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/diagnostic.rs:
+/home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/errors.rs:
+/home/ann0s/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/cargo_metadata-0.23.1/src/messages.rs:

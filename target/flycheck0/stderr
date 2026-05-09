@@ -1,13 +1,3 @@
-warning: profiles for the non root package will be ignored, specify profiles at the workspace root:
-package:   /home/ann0s/Dokumente/ebpf_packet_inject/xdp-ebpf/Cargo.toml
-workspace: /home/ann0s/Dokumente/ebpf_packet_inject/Cargo.toml
-warning: /home/ann0s/Dokumente/ebpf_packet_inject/xdp-user-space/Cargo.toml: `package.edition` is unspecified, defaulting to `2015` while the latest is `2024`
-warning: /home/ann0s/Dokumente/ebpf_packet_inject/xdp-data-structures/Cargo.toml: `package.edition` is unspecified, defaulting to `2015` while the latest is `2024`
-warning: /home/ann0s/Dokumente/ebpf_packet_inject/xdp-ebpf/Cargo.toml: `package.edition` is unspecified, defaulting to `2015` while the latest is `2024`
-warning: /home/ann0s/Dokumente/ebpf_packet_inject/xdp-ebpf/Cargo.toml: file `/home/ann0s/Dokumente/ebpf_packet_inject/xdp-ebpf/src/main.rs` found to be present in multiple build targets:
-  * `lib` target `xdp_ebpf`
-  * `bin` target `xdp-ebpf`
-    Updating crates.io index
-error: no matching package named `xdp-data-structures` found
-location searched: /home/ann0s/Dokumente/ebpf_packet_inject/xdp-user-space
-required by package `xdp-ebpf v0.1.0 (/home/ann0s/Dokumente/ebpf_packet_inject/xdp-ebpf)`
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache

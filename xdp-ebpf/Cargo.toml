@@ -1,14 +1,15 @@
 [package]
 name = "xdp-ebpf"
 version = "0.1.0"
-edition = "2024"
+edition = "2021"
 
 [lib]
+path = "src/lib.rs"
 crate-type = ["cdylib"]
 
 [dependencies]
-aya-ebpf = { version = "0.3", default-features = false, features = ["maps", "xdp"]}
+aya-ebpf = "0.1.1"
 aya-log-ebpf = "0.1"
-network-types = "0.4"
+network-types = "0.2.0"
 xdp-data-structures = { path = "../xdp-data-structures" }
 

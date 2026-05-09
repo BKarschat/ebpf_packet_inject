@@ -1,22 +1,34 @@
 #!/bin/bash
 set -e
 
-echo "1. Nightly + BPF-Target..."
-rustup toolchain install nightly --component rust-src
-rustup default nightly
-rustup target add bpfel-unknown-none
+echo "==> Checking for nightly toolchain..."
+rustup toolchain install nightly
+rustup override set nightly
 
-echo "2. BPF-Linker..."
+echo "==> Installing rust-src (required for build-std)"
+rustup component add rust-src --toolchain nightly
+
+echo "==> Installing bpf-linker..."
 cargo install bpf-linker
 
-echo "3. System deps..."
-sudo apt update
-sudo apt install -y libbpf-dev linux-headers-$(uname -r) clang llvm
+echo "==> Building eBPF kernel program..."
+cargo +nightly build \
+  --package xdp-ebpf \
+  --target bpfel-unknown-none \
+  -Z build-std=core \
+  --release
 
-echo "4. Test build..."
-cd dns-xdp-ebpf
-RUSTFLAGS="-C panic=abort" cargo build --release --target bpfel-unknown-none
-cd ..
+echo "==> Building user-space program..."
+cargo build \
+  --package xdp-user-space \
+  --release
 
-echo "✅ Fertig! Starte mit: sudo ./dns-xdp-user/target/release/dns-xdp-user run --iface eth1"
-
+echo ""
+echo "==> Build successful!"
+echo ""
+echo "Usage:"
+echo "  sudo ./target/release/xdp-user-space run --iface <interface>"
+echo "  sudo ./target/release/xdp-user-space set-pattern --pattern 'de:ad:be:ef'"
+echo ""
+echo "Available interfaces:"
+ip link show | grep -E '^[0-9]+:' | awk '{print "  " $2}' | tr -d ':'

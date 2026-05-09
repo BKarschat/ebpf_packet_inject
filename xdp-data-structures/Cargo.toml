@@ -3,3 +3,7 @@ name = "xdp-data-structures"
 version = "0.1.0"
 edition = "2024"
 [dependencies]
+aya = { version = "0.13", optional = true }
+
+[features]
+user-space = ["dep:aya"]

@@ -20,3 +20,9 @@ pub struct DnsConfig {
     pub pattern_len: u8,
     pub pattern: [u8; 32],
 }
+
+#[cfg(feature = "user-space")]
+unsafe impl ::aya::Pod for DnsEvent {}
+
+#[cfg(feature = "user-space")]
+unsafe impl ::aya::Pod for DnsConfig {}

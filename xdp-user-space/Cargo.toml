@@ -4,10 +4,11 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-aya = { version = "0.3", features = ["async_tokio"] }
+aya = { version = "0.13.1", features = ["async_tokio"] }
 anyhow = "1"
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal"] }
-xdp-data-structures = { path = "../xdp-data-structures" }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "signal", "time"] }
+xdp-data-structures = { path = "../xdp-data-structures", features = ["user-space"] }
 clap = { version = "4", features = ["derive"] }
 env_logger = "0.11"
 log = "0.4"
+
