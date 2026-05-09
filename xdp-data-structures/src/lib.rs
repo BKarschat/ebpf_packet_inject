@@ -5,16 +5,18 @@
 
 #[repr(C)]
 #[derive(Clone, Copy)]
-pub struct DNSEvent {
+pub struct DnsEvent {
     pub src_ip: u32,
     pub dst_ip: u32,
     pub src_port: u16,
     pub dst_port: u16,
     pub match_bytes: [u8; 4],
+    pub match_len: [u8; 4],
 }
 
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct DnsConfig {
-    pub pattern: [u8, 4],
+    pub pattern_len: u8,
+    pub pattern: [u8; 32],
 }
