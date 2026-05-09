@@ -11,7 +11,7 @@ crate-type = ["cdylib"]
 aya-ebpf = { version = "0.3", default-features = false, features = ["maps", "xdp"]}
 aya-log-ebpf = "0.1"
 network-types = "0.4"
-xdp-data-structures = { path = "../xdp-user-space" }
+xdp-data-structures = { path = "../xdp-data-structures" }
 
 [profile.release]
 lto = true
