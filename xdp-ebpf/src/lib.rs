@@ -96,17 +96,10 @@ fn try_dns_xdp(ctx: XdpContext) -> Result<u32, ()> {
         return Ok(xdp_action::XDP_PASS);
     }
 
-    let max_len = data_end - payload_offset;
-    // way to static -> User Input
-
-    if max_len < pattern_len as usize {
-        return Ok(xdp_action::XDP_PASS);
-    }
-
     // byte for byte
     let mut match_ok = true;
     for i in 0..32usize {
-        if i > pattern_len {
+        if i >= pattern_len {
             break;
         }
         let addr = data_start + payload_offset + i;
