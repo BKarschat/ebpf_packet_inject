@@ -1,3 +1,4 @@
+use core::option::Option;
 use std::net::Ipv4Addr;
 
 use anyhow::Result;
@@ -7,7 +8,7 @@ use aya::{
     programs::{Xdp, XdpFlags},
     Ebpf,
 };
-
+use aya_log::EbpfLogger;
 use clap::Parser;
 use log::info;
 use tokio::signal;
@@ -23,16 +24,17 @@ struct Opt {
 #[derive(Debug, clap::Subcommand)]
 enum Command {
     Run {
-        #[arg(short, long, default_value = "enp0s3")]
+        #[arg(short, long, default_value = "enp5s0")]
         iface: String,
+        //optional
+        #[arg(short, long)]
+        pattern: Option<String>,
     },
     //
-    //hot reload of pattern
+    //hot reload of pattern - just call binary with setpattern and the bpf map gets a new pattern!
     SetPattern {
         #[arg(short, long)]
         pattern: String,
-        #[arg(short, long)]
-        pattern_len: Option<usize>,
     },
 }
 
@@ -81,40 +83,47 @@ fn set_pattern(pattern_str: &str, len: Option<usize>) -> Result<()> {
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init();
+    log::info!("User space program init");
 
     let opt = Opt::parse();
     match opt.cmd {
-        Command::Run { iface } => run_daemon(&iface).await?,
-        Command::SetPattern {
-            pattern,
-            pattern_len,
-        } => set_pattern(&pattern, pattern_len)?,
+        Command::Run { iface, pattern } => run_daemon(&iface, pattern.as_deref()).await?,
+        Command::SetPattern { pattern } => set_pattern(&pattern, None)?,
     }
     Ok(())
 }
 
-async fn run_daemon(iface: &str) -> Result<()> {
+async fn run_daemon(iface: &str, pattern: Option<&str>) -> Result<()> {
     use tokio::io::unix::AsyncFd;
-
     let mut bpf = Ebpf::load(include_bytes_aligned!(
         "../../target/bpfel-unknown-none/release/libxdp_ebpf.so"
     ))?;
 
+    let mut _logger = aya_log::EbpfLogger::init(&mut bpf)?;
     let mut config_map: HashMap<_, u32, DnsConfig> = HashMap::try_from(
         bpf.map_mut("CONFIG")
             .ok_or(anyhow::anyhow!("CONFIG map not found"))?,
     )?;
+
+    // default config or is there a pattern set?
     let key: u32 = 0;
-    let default_cfg = DnsConfig {
-        pattern_len: 4,
-        pattern: {
-            let mut p = [0u8; 32];
-            p[..4].copy_from_slice(&[0xde, 0xad, 0xbe, 0xef]);
-            p
-        },
+    let cfg = if let Some(p) = pattern {
+        parse_pattern(p, None)?
+    } else {
+        DnsConfig {
+            pattern_len: 4,
+            pattern: {
+                let mut p = [0u8; 32];
+                p[..4].copy_from_slice(&[0xde, 0xad, 0xbe, 0xef]);
+                p
+            },
+        }
     };
-    config_map.insert(key, default_cfg, 0)?;
-    info!("Config map initialisiert");
+    config_map.insert(key, cfg, 0)?;
+    info!(
+        "Config map initialisiert mit {} Bytes Pattern",
+        cfg.pattern_len
+    );
 
     let program: &mut Xdp = bpf.program_mut("dns_xdp").unwrap().try_into()?;
     program.load()?;
@@ -140,6 +149,7 @@ async fn run_daemon(iface: &str) -> Result<()> {
                 let rb = guard.get_inner_mut();
                 while let Some(item) = rb.next() {
                     let data: &[u8] = &item;
+                    log::info!("RingBuf: got {} bytes, ", data.len());
                     if data.len() != core::mem::size_of::<DnsEvent>() { continue; }
                     let event: &DnsEvent = unsafe {
                         &*(data.as_ptr() as *const DnsEvent)

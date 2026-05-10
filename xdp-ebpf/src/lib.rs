@@ -42,78 +42,103 @@ fn ptr_at<'a, T>(ctx: &XdpContext, offset: usize) -> Result<&'a T, ()> {
 
 #[xdp]
 pub fn dns_xdp(ctx: XdpContext) -> u32 {
-    match try_dns_xdp(ctx) {
-        Ok(ret) => ret,
-        Err(_) => xdp_action::XDP_PASS,
+    //info!(&ctx, "dns context");
+    //return 0;
+    let eth = match ptr_at::<EthHdr>(&ctx, 0) {
+        Ok(v) => v,
+        Err(_) => return xdp_action::XDP_PASS,
+    };
+    match eth.ether_type() {
+        Ok(EtherType::Ipv4) => {}
+        _ => return xdp_action::XDP_PASS,
     }
-}
 
-fn try_dns_xdp(ctx: XdpContext) -> Result<u32, ()> {
-    let eth = ptr_at::<EthHdr>(&ctx, 0)?;
-    if eth.ether_type != EtherType::Ipv4 as u16 {
-        return Ok(xdp_action::XDP_PASS);
-    }
+    let ip = match ptr_at::<Ipv4Hdr>(&ctx, EthHdr::LEN) {
+        Ok(v) => v,
+        Err(_) => return xdp_action::XDP_PASS,
+    };
 
-    let ip = ptr_at::<Ipv4Hdr>(&ctx, EthHdr::LEN)?;
     // TODO match different filter
     if ip.proto != 17 {
-        return Ok(xdp_action::XDP_PASS);
+        return xdp_action::XDP_PASS;
     }
 
-    let ip_hdr_len = (ip.ihl() * 4) as usize;
-    let udp_offset = EthHdr::LEN + ip_hdr_len; // dynamic offset
-    let udp = ptr_at::<UdpHdr>(&ctx, EthHdr::LEN + ip_hdr_len)?;
+    const UDP_OFFSET: usize = 34;
+    const DNS_OFFSET: usize = 42;
+    const PAYLOAD_OFFSET: usize = 54;
+
+    // UDP
+    let udp = match ptr_at::<UdpHdr>(&ctx, UDP_OFFSET) {
+        Ok(v) => v,
+        Err(_) => return xdp_action::XDP_PASS,
+    };
 
     let src_port = u16::from_be_bytes(udp.src);
     let dst_port = u16::from_be_bytes(udp.dst);
-
     if src_port != 53 && dst_port != 53 {
-        return Ok(xdp_action::XDP_PASS);
+        return xdp_action::XDP_PASS;
     }
 
-    let udp_hdr_len = mem::size_of::<UdpHdr>();
-    let dns_offset = udp_offset + udp_hdr_len;
-    let payload_offset = dns_offset + 12;
-
-    let mut pattern = [0u8; 32];
-    let mut plen: u8 = 4;
-    pattern[..4].copy_from_slice(&[0xde, 0xad, 0xbe, 0xef]);
+    info!(
+        &ctx,
+        "DNS: {}:{} -> {}:{}",
+        ip.src_addr[3], // letztes Oktett zur Übersicht
+        src_port,
+        ip.dst_addr[3],
+        dst_port
+    );
+    let b0 = match ptr_at::<u8>(&ctx, PAYLOAD_OFFSET + 0) {
+        Ok(v) => *v,
+        Err(_) => return xdp_action::XDP_PASS,
+    };
+    let b1 = match ptr_at::<u8>(&ctx, PAYLOAD_OFFSET + 1) {
+        Ok(v) => *v,
+        Err(_) => return xdp_action::XDP_PASS,
+    };
+    let b2 = match ptr_at::<u8>(&ctx, PAYLOAD_OFFSET + 2) {
+        Ok(v) => *v,
+        Err(_) => return xdp_action::XDP_PASS,
+    };
+    let b3 = match ptr_at::<u8>(&ctx, PAYLOAD_OFFSET + 3) {
+        Ok(v) => *v,
+        Err(_) => return xdp_action::XDP_PASS,
+    };
+    info!(&ctx, "Payload: {:x} {:x} {:x} {:x}", b0, b1, b2, b3);
+    // Manuelles loaden des pattern mit default Werten
     let key: u32 = 0;
-    if let Some(cfg) = unsafe { CONFIG.get(&key) } {
-        plen = cfg.pattern_len;
-        pattern = cfg.pattern;
-    }
+    let (plen, pattern) = match unsafe { CONFIG.get(&key) } {
+        Some(cfg) => (cfg.pattern_len, cfg.pattern), // cfg.pattern ist [u8; 32]
+        None => {
+            let mut p = [0u8; 32];
+            p[0] = 0xde;
+            p[1] = 0xad;
+            p[2] = 0xbe;
+            p[3] = 0xef;
+            (4u8, p)
+        }
+    };
 
     let pattern_len = plen as usize;
-    if pattern_len == 0 || pattern_len > 32 {
-        return Ok(xdp_action::XDP_PASS);
-    }
+    //let payload_offset = (dns_offset + 12) & 0x1ff;
 
-    let data_start = ctx.data() as usize;
-    let data_end = ctx.data_end() as usize;
-
-    if data_start + payload_offset + pattern_len > data_end {
-        return Ok(xdp_action::XDP_PASS);
-    }
-
-    // byte for byte
+    // Vergleich — pattern liegt auf dem Stack, ptr_at bleibt inline
     let mut match_ok = true;
     for i in 0..32usize {
         if i >= pattern_len {
             break;
         }
-        let addr = data_start + payload_offset + i;
-        if addr >= data_end {
-            return Ok(xdp_action::XDP_PASS);
-        }
-        if unsafe { *(addr as *const u8) } != pattern[i] {
+        let byte: u8 = match ptr_at::<u8>(&ctx, PAYLOAD_OFFSET + i) {
+            Ok(v) => *v,
+            Err(_) => return xdp_action::XDP_PASS,
+        };
+        if byte != pattern[i] {
             match_ok = false;
             break;
         }
     }
 
     if !match_ok {
-        return Ok(xdp_action::XDP_PASS);
+        return xdp_action::XDP_PASS;
     }
 
     //event with effective length
@@ -132,9 +157,13 @@ fn try_dns_xdp(ctx: XdpContext) -> Result<u32, ()> {
 
         entry.write(event);
         entry.submit(0);
-        info!(&ctx, "DNS match, event send!");
+        info!(&ctx, "DNS match, event send, packet drop!");
     }
-    Ok(xdp_action::XDP_PASS)
+    // Drop packet!
+    if dst_port == 53 {
+        return xdp_action::XDP_DROP;
+    }
+    xdp_action::XDP_PASS
 }
 
 #[panic_handler]
