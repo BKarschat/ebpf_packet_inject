@@ -4,15 +4,14 @@ use std::net::Ipv4Addr;
 use anyhow::Result;
 use aya::{
     include_bytes_aligned,
-    maps::{ring_buf::RingBuf, HashMap},
+    maps::{ring_buf::RingBuf, HashMap, Map, MapData},
     programs::{Xdp, XdpFlags},
     Ebpf,
 };
-use aya_log::EbpfLogger;
-use clap::{Parser, Subcommand, ValueEnum};
+use clap::{Parser, ValueEnum};
 use log::info;
 use tokio::signal;
-use xdp_data_structures::{DnsConfig, DnsEvent};
+use xdp_data_structures::{DnsConfig, DnsEvent, CONFIG_PIN_PATH};
 
 #[derive(Debug, Parser)]
 #[command(name = "xdp-user")]
@@ -87,18 +86,15 @@ fn parse_pattern(pattern_str: &str, len: Option<usize>, mode: &Mode) -> Result<D
 
 fn set_pattern(pattern_str: &str, len: Option<usize>, mode: &Mode) -> Result<()> {
     let cfg = parse_pattern(pattern_str, len, mode)?;
-    let mut bpf = Ebpf::load(include_bytes_aligned!(
-        "../../target/bpfel-unknown-none/release/libxdp_ebpf.so"
-    ))?;
 
     // do not attach, just get the map
-    let mut config_map: HashMap<_, u32, DnsConfig> = HashMap::try_from(
-        bpf.map_mut("CONFIG")
-            .ok_or(anyhow::anyhow!("CONFIG map not found"))?,
-    )?;
-    let key: u32 = 0;
-    config_map.insert(key, cfg, 0)?;
-    info!("init pattern");
+    let mut config_map: HashMap<_, u32, DnsConfig> =
+        HashMap::try_from(Map::HashMap(MapData::from_pin(CONFIG_PIN_PATH)?))?;
+    config_map.insert(0u32, cfg, 0)?;
+    info!(
+        "pattern updated - {} bytes, mode: {:?}",
+        cfg.pattern_len, mode
+    );
     Ok(())
 }
 
@@ -124,6 +120,12 @@ async fn run_daemon(iface: &str, pattern: Option<&str>, mode: &Mode) -> Result<(
     let mut bpf = Ebpf::load(include_bytes_aligned!(
         "../../target/bpfel-unknown-none/release/libxdp_ebpf.so"
     ))?;
+    let pin_path = CONFIG_PIN_PATH;
+    if std::path::Path::new(pin_path).exists() {
+        std::fs::remove_file(pin_path)?;
+    }
+    std::fs::create_dir_all("pin_path")?;
+    bpf.map_mut("CONFIG").unwrap().pin(CONFIG_PIN_PATH)?;
 
     let mut _logger = aya_log::EbpfLogger::init(&mut bpf)?;
     let mut config_map: HashMap<_, u32, DnsConfig> = HashMap::try_from(
@@ -131,7 +133,6 @@ async fn run_daemon(iface: &str, pattern: Option<&str>, mode: &Mode) -> Result<(
             .ok_or(anyhow::anyhow!("CONFIG map not found"))?,
     )?;
 
-    // default config or is there a pattern set?
     let key: u32 = 0;
     let cfg = if let Some(p) = pattern {
         parse_pattern(p, None, mode)?
@@ -147,10 +148,7 @@ async fn run_daemon(iface: &str, pattern: Option<&str>, mode: &Mode) -> Result<(
         }
     };
     config_map.insert(key, cfg, 0)?;
-    info!(
-        "Config map initialisiert mit {} Bytes Pattern",
-        cfg.pattern_len
-    );
+    info!("Config map init {} Bytes Pattern", cfg.pattern_len);
 
     let program: &mut Xdp = bpf.program_mut("dns_xdp").unwrap().try_into()?;
     program.load()?;
@@ -169,6 +167,7 @@ async fn run_daemon(iface: &str, pattern: Option<&str>, mode: &Mode) -> Result<(
         tokio::select! {
             _ = signal::ctrl_c() => {
                 info!("Ctrl-C received, abort");
+                let _ = std::fs::remove_file(CONFIG_PIN_PATH);
                 break;
             }
             guard = async_fd.readable_mut() => {

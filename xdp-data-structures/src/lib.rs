@@ -23,6 +23,9 @@ pub struct DnsConfig {
     pub mode: u8,
 }
 
+// where to store the bpf map
+pub const CONFIG_PIN_PATH: &str = "/sys/fs/bpf/xdp_dns/config";
+
 #[cfg(feature = "user-space")]
 unsafe impl ::aya::Pod for DnsEvent {}
 

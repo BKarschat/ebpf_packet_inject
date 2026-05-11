@@ -133,13 +133,14 @@ pub fn dns_xdp(ctx: XdpContext) -> u32 {
 
         entry.write(event);
         entry.submit(0);
-        info!(&ctx, "DNS match, event send, packet drop!");
     }
     // Drop packet!
     if mode == 1 {
+        info!(&ctx, "DNS match, event send, packet dropped!");
         return xdp_action::XDP_DROP;
     } else {
-        xdp_action::XDP_PASS
+        info!(&ctx, "DNS match, event send, packet passed!");
+        return xdp_action::XDP_PASS;
     }
 }
 
