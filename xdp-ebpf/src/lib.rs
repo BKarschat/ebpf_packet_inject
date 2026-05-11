@@ -79,42 +79,17 @@ pub fn dns_xdp(ctx: XdpContext) -> u32 {
         return xdp_action::XDP_PASS;
     }
 
-    info!(
-        &ctx,
-        "DNS: {}:{} -> {}:{}",
-        ip.src_addr[3], // letztes Oktett zur Übersicht
-        src_port,
-        ip.dst_addr[3],
-        dst_port
-    );
-    let b0 = match ptr_at::<u8>(&ctx, PAYLOAD_OFFSET + 0) {
-        Ok(v) => *v,
-        Err(_) => return xdp_action::XDP_PASS,
-    };
-    let b1 = match ptr_at::<u8>(&ctx, PAYLOAD_OFFSET + 1) {
-        Ok(v) => *v,
-        Err(_) => return xdp_action::XDP_PASS,
-    };
-    let b2 = match ptr_at::<u8>(&ctx, PAYLOAD_OFFSET + 2) {
-        Ok(v) => *v,
-        Err(_) => return xdp_action::XDP_PASS,
-    };
-    let b3 = match ptr_at::<u8>(&ctx, PAYLOAD_OFFSET + 3) {
-        Ok(v) => *v,
-        Err(_) => return xdp_action::XDP_PASS,
-    };
-    info!(&ctx, "Payload: {:x} {:x} {:x} {:x}", b0, b1, b2, b3);
     // Manuelles loaden des pattern mit default Werten
     let key: u32 = 0;
-    let (plen, pattern) = match unsafe { CONFIG.get(&key) } {
-        Some(cfg) => (cfg.pattern_len, cfg.pattern), // cfg.pattern ist [u8; 32]
+    let (plen, pattern, mode) = match unsafe { CONFIG.get(&key) } {
+        Some(cfg) => (cfg.pattern_len, cfg.pattern, cfg.mode), // cfg.pattern ist [u8; 32]
         None => {
             let mut p = [0u8; 32];
             p[0] = 0xde;
             p[1] = 0xad;
             p[2] = 0xbe;
             p[3] = 0xef;
-            (4u8, p)
+            (4u8, p, 0u8)
         }
     };
 
@@ -153,6 +128,7 @@ pub fn dns_xdp(ctx: XdpContext) -> u32 {
             dst_port,
             match_bytes: pattern,
             match_len: plen,
+            was_dropped: mode,
         };
 
         entry.write(event);
@@ -160,10 +136,11 @@ pub fn dns_xdp(ctx: XdpContext) -> u32 {
         info!(&ctx, "DNS match, event send, packet drop!");
     }
     // Drop packet!
-    if dst_port == 53 {
+    if mode == 1 {
         return xdp_action::XDP_DROP;
+    } else {
+        xdp_action::XDP_PASS
     }
-    xdp_action::XDP_PASS
 }
 
 #[panic_handler]

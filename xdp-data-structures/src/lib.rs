@@ -12,6 +12,7 @@ pub struct DnsEvent {
     pub dst_port: u16,
     pub match_len: u8,
     pub match_bytes: [u8; 32],
+    pub was_dropped: u8,
 }
 
 #[repr(C)]
@@ -19,6 +20,7 @@ pub struct DnsEvent {
 pub struct DnsConfig {
     pub pattern_len: u8,
     pub pattern: [u8; 32],
+    pub mode: u8,
 }
 
 #[cfg(feature = "user-space")]

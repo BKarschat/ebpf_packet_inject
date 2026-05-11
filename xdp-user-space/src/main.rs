@@ -9,7 +9,7 @@ use aya::{
     Ebpf,
 };
 use aya_log::EbpfLogger;
-use clap::Parser;
+use clap::{Parser, Subcommand, ValueEnum};
 use log::info;
 use tokio::signal;
 use xdp_data_structures::{DnsConfig, DnsEvent};
@@ -17,10 +17,27 @@ use xdp_data_structures::{DnsConfig, DnsEvent};
 #[derive(Debug, Parser)]
 #[command(name = "xdp-user")]
 #[command(about = "DNS XDP filter with config", long_about = None)]
+
 struct Opt {
     #[command(subcommand)]
     cmd: Command,
 }
+
+#[derive(Debug, Clone, ValueEnum)]
+enum Mode {
+    Observed, // --mode observe
+    Block,    // --mode block
+}
+
+impl Mode {
+    fn as_u8(&self) -> u8 {
+        match self {
+            Mode::Observed => 0,
+            Mode::Block => 1,
+        }
+    }
+}
+
 #[derive(Debug, clap::Subcommand)]
 enum Command {
     Run {
@@ -29,16 +46,21 @@ enum Command {
         //optional
         #[arg(short, long)]
         pattern: Option<String>,
+        //mode for dropping the packets
+        #[arg(long, value_enum, default_value = "observed")]
+        mode: Mode,
     },
     //
     //hot reload of pattern - just call binary with setpattern and the bpf map gets a new pattern!
     SetPattern {
         #[arg(short, long)]
         pattern: String,
+        #[arg(long, value_enum, default_value = "observed")]
+        mode: Mode,
     },
 }
 
-fn parse_pattern(pattern_str: &str, len: Option<usize>) -> Result<DnsConfig> {
+fn parse_pattern(pattern_str: &str, len: Option<usize>, mode: &Mode) -> Result<DnsConfig> {
     let clean = pattern_str
         .replace(":", "")
         .replace("-", "")
@@ -56,15 +78,15 @@ fn parse_pattern(pattern_str: &str, len: Option<usize>) -> Result<DnsConfig> {
         //    for (i, chunk) in clean.as_bytes().array_chunks().take(32).enumerate() {
         pattern[i] = u8::from_str_radix(core::str::from_utf8(chunk).unwrap(), 16)?;
     }
-
     Ok(DnsConfig {
         pattern_len: effective_len as u8,
         pattern,
+        mode: mode.as_u8(),
     })
 }
 
-fn set_pattern(pattern_str: &str, len: Option<usize>) -> Result<()> {
-    let cfg = parse_pattern(pattern_str, len)?;
+fn set_pattern(pattern_str: &str, len: Option<usize>, mode: &Mode) -> Result<()> {
+    let cfg = parse_pattern(pattern_str, len, mode)?;
     let mut bpf = Ebpf::load(include_bytes_aligned!(
         "../../target/bpfel-unknown-none/release/libxdp_ebpf.so"
     ))?;
@@ -87,13 +109,17 @@ async fn main() -> Result<()> {
 
     let opt = Opt::parse();
     match opt.cmd {
-        Command::Run { iface, pattern } => run_daemon(&iface, pattern.as_deref()).await?,
-        Command::SetPattern { pattern } => set_pattern(&pattern, None)?,
+        Command::Run {
+            iface,
+            pattern,
+            mode,
+        } => run_daemon(&iface, pattern.as_deref(), &mode).await?,
+        Command::SetPattern { pattern, mode } => set_pattern(&pattern, None, &mode)?,
     }
     Ok(())
 }
 
-async fn run_daemon(iface: &str, pattern: Option<&str>) -> Result<()> {
+async fn run_daemon(iface: &str, pattern: Option<&str>, mode: &Mode) -> Result<()> {
     use tokio::io::unix::AsyncFd;
     let mut bpf = Ebpf::load(include_bytes_aligned!(
         "../../target/bpfel-unknown-none/release/libxdp_ebpf.so"
@@ -108,7 +134,7 @@ async fn run_daemon(iface: &str, pattern: Option<&str>) -> Result<()> {
     // default config or is there a pattern set?
     let key: u32 = 0;
     let cfg = if let Some(p) = pattern {
-        parse_pattern(p, None)?
+        parse_pattern(p, None, mode)?
     } else {
         DnsConfig {
             pattern_len: 4,
@@ -117,6 +143,7 @@ async fn run_daemon(iface: &str, pattern: Option<&str>) -> Result<()> {
                 p[..4].copy_from_slice(&[0xde, 0xad, 0xbe, 0xef]);
                 p
             },
+            mode: mode.as_u8(),
         }
     };
     config_map.insert(key, cfg, 0)?;

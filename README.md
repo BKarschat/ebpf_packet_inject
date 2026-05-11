@@ -95,6 +95,14 @@ pub struct DnsConfig {
 
 ---
 
+## Modes
+| Mode | `DnsConfig.mode` | XDP action on match | Use case |
+|------|------------------|---------------------|----------|
+|`observed` | `0` | `XDP_PASS -- packet contunues to kernel, event emitted | Passive monitoring, debugging` |
+| `block` | `1` | `XDP_DROP` -- packet discarded immediately, event emitted | Active blocking, filtering | 
+
+---
+
 ## XDP Actions
 
 | Action | What happens |
@@ -157,14 +165,26 @@ The workspace builds all three crates. The eBPF ELF is embedded into the userspa
 
 ## Usage
 
-### Run the daemon
+### Observe mode (default)
 
-Attach the XDP filter to a network interface with an initial pattern:
+Attach the XDP filter and log matching packets without dropping them:
 
 ```bash
 sudo RUST_LOG=info ./target/release/xdp-user-space run \
   --iface enp5s0 \
   --pattern "0377777706676f6f676c65"
+  -- mode observed
+```
+
+### Block mode
+
+Drop matching packets immediately and log the event:
+
+```bash
+sudo RUST_LOG=info ./target/release/xdp-user-space run \
+  --iface enp5s0 \
+  --pattern "0377777706676f6f676c65"
+  -- mode block 
 ```
 
 Then trigger a match:
@@ -185,9 +205,15 @@ INFO  Match len - 11 | 192.168.1.10:54312 → 8.8.8.8:53
 Update the pattern **while the XDP program is already running** — no restart, no packet loss:
 
 ```bash
+# Switch to block mode with a new pattern
 sudo ./target/release/xdp-user-space setpattern \
   --pattern "deadbeef" \
-  --patternlen 4
+  --mode block
+
+# Switch back to observe mode and change pattern
+sudo ./target/release/xdp-user-space setpattern \
+  --pattern "beefdead" \
+  --mode observed
 ```
 
 The tool opens the existing `CONFIG` BPF map and overwrites the entry. The kernel-side program picks up the new value on the very next packet.
@@ -219,7 +245,6 @@ This program requires **root privileges** or `CAP_NET_ADMIN` and attaches direct
 
 - [ ] Pattern matching on other ports (HTTP, TLS SNI, custom UDP/TCP)
 - [ ] Multiple simultaneous patterns via a `HashMap<u32, DnsConfig>`
-- [ ] Hard-drop mode (`XDP_DROP` on match instead of pass-and-notify)
 - [ ] `XDP_TX` response injection (e.g. NXDOMAIN spoofing without a resolver)
 - [ ] Raw byte extraction from arbitrary payload offsets into `DnsEvent`
 - [ ] Structured output (JSON / NDJSON) for downstream pipeline integration
